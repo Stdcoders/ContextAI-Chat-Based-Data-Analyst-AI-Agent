@@ -2,33 +2,24 @@ import streamlit as st
 import tempfile
 import os
 import sys
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from agentworkflow import AgentState, run_contextai
+import base64
 import streamlit.components.v1 as components
+
+BACKEND = "https://contextai-chat-based-data-analyst-ai.onrender.com/"
+
 
 st.set_page_config(page_title="ContextAI – Agentic Data Analyst", layout="wide")
 st.title("ContextAI – Agentic Data Analyst")
 
-# -----------------------------
-# Initialize Agent State
-# -----------------------------
-if "state" not in st.session_state:
-    st.session_state.state = AgentState(
-        dataset_name=None,
-        file_path=None,
-        dataframe=None,
-        df_profile=None,
-        understanding=None,
-        questions=[],
-        analysis_history=[],
-        user_request="",
-        is_cleaned=False,
-        chat_history=[],
-        report_path=None
-    )
+import streamlit as st
+import requests
+import base64
+import streamlit.components.v1 as components
 
-STATE = st.session_state.state
+BACKEND = "https://contextai-backend.onrender.com"
+
+st.set_page_config(page_title="ContextAI – Agentic Data Analyst", layout="wide")
+st.title("ContextAI – Agentic Data Analyst")
 
 # -----------------------------
 # File Upload
@@ -39,25 +30,20 @@ uploaded = st.file_uploader(
 )
 
 if uploaded:
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        tmp.write(uploaded.getbuffer())
-        tmp_path = tmp.name
+    with st.spinner("Uploading dataset..."):
+        files = {"file": uploaded}
+        res = requests.post(f"{BACKEND}/upload", files=files)
 
-    with st.spinner("Loading dataset and generating questions..."):
-        STATE, response = run_contextai(
-            state=STATE,
-            user_input="",
-            file_path=tmp_path
-        )
+    if res.status_code == 200:
+        data = res.json()
+        st.success("✅ Dataset loaded")
 
-    st.session_state.state = STATE
-
-    st.success("✅ Dataset loaded")
-
-    if response.get("questions"):
-        st.subheader("💡 Suggested Questions")
-        for q in response["questions"]:
-            st.write("•", q)
+        if data.get("questions"):
+            st.subheader("💡 Suggested Questions")
+            for q in data["questions"]:
+                st.write("•", q)
+    else:
+        st.error("❌ Failed to upload dataset")
 
 # -----------------------------
 # Chat / Analysis
@@ -70,24 +56,27 @@ if st.button("Run Analysis"):
         st.warning("Please enter a question.")
     else:
         with st.spinner("Analyzing..."):
-            STATE, response = run_contextai(
-                state=STATE,
-                user_input=query
+            res = requests.post(
+                f"{BACKEND}/query",
+                json={"message": query}
             )
 
-        st.session_state.state = STATE
+        if res.status_code == 200:
+            data = res.json()
 
-        if response.get("answer"):
-            st.subheader("🧠 Answer")
-            st.write(response["answer"])
+            if data.get("answer"):
+                st.subheader("🧠 Answer")
+                st.write(data["answer"])
 
-        analysis = response.get("analysis")
-        if analysis and analysis.get("visualization_html"):
-            st.subheader("📊 Visualization")
-            components.html(
-                analysis["visualization_html"],
-                height=500
-            )
+            analysis = data.get("analysis")
+            if analysis and analysis.get("visualization_html"):
+                st.subheader("📊 Visualization")
+                components.html(
+                    analysis["visualization_html"],
+                    height=500
+                )
+        else:
+            st.error("❌ Analysis failed")
 
 # -----------------------------
 # Report Generation
@@ -96,31 +85,31 @@ st.subheader("📄 Report")
 
 if st.button("Generate Report"):
     with st.spinner("Generating report..."):
-        STATE, response = run_contextai(
-            state=STATE,
-            user_input="Generate a comprehensive report"
+        res = requests.post(
+            f"{BACKEND}/query",
+            json={"message": "Generate a comprehensive report"}
         )
 
-    st.session_state.state = STATE
-
-    if STATE.get("report_path"):
-        st.success("✅ Report generated successfully")
+    if res.status_code == 200:
+        st.success("✅ Report generated")
     else:
         st.error("❌ Report generation failed")
 
 # -----------------------------
-# Report Preview
+# Report Preview + Download
 # -----------------------------
-if STATE.get("report_path") and os.path.exists(STATE["report_path"]):
-    st.subheader("👀 Report Preview")
+st.subheader("👀 Report Preview")
 
-    with open(STATE["report_path"], "rb") as f:
-        pdf_bytes = f.read()
+preview = requests.get(f"{BACKEND}/download-report")
+
+if preview.status_code == 200:
+    pdf_bytes = preview.content
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
     components.html(
         f"""
         <iframe
-            src="data:application/pdf;base64,{pdf_bytes.hex()}"
+            src="data:application/pdf;base64,{pdf_base64}"
             width="100%"
             height="800px"
             style="border:none;"
@@ -129,13 +118,9 @@ if STATE.get("report_path") and os.path.exists(STATE["report_path"]):
         height=820
     )
 
-    # -----------------------------
-    # Report Download
-    # -----------------------------
     st.download_button(
         label="⬇️ Download Report",
         data=pdf_bytes,
-        file_name=os.path.basename(STATE["report_path"]),
+        file_name="contextai_report.pdf",
         mime="application/pdf"
     )
-
