@@ -1,7 +1,9 @@
 import streamlit as st
 import tempfile
 import os
+import sys
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from agentworkflow import AgentState, run_contextai
 import streamlit.components.v1 as components
 
@@ -136,3 +138,4 @@ if STATE.get("report_path") and os.path.exists(STATE["report_path"]):
         file_name=os.path.basename(STATE["report_path"]),
         mime="application/pdf"
     )
+
