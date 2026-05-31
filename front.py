@@ -4,19 +4,9 @@ import os
 import sys
 import base64
 import streamlit.components.v1 as components
-
-BACKEND = "https://contextai-chat-based-data-analyst-ai.onrender.com/"
-
-
-st.set_page_config(page_title="ContextAI – Agentic Data Analyst", layout="wide")
-st.title("ContextAI – Agentic Data Analyst")
-
-import streamlit as st
 import requests
-import base64
-import streamlit.components.v1 as components
 
-BACKEND = "https://contextai-backend.onrender.com"
+BACKEND = "https://contextai-backend-7o1w.onrender.com"
 
 st.set_page_config(page_title="ContextAI – Agentic Data Analyst", layout="wide")
 st.title("ContextAI – Agentic Data Analyst")
@@ -92,35 +82,41 @@ if st.button("Generate Report"):
 
     if res.status_code == 200:
         st.success("✅ Report generated")
+        st.session_state["report_ready"] = True  # ✅ flag it
     else:
         st.error("❌ Report generation failed")
 
 # -----------------------------
 # Report Preview + Download
 # -----------------------------
-st.subheader("👀 Report Preview")
+# ✅ Only fetch report when user has generated one
+if st.session_state.get("report_ready"):
+    st.subheader("👀 Report Preview")
 
-preview = requests.get(f"{BACKEND}/download-report")
+    with st.spinner("Loading report..."):
+        preview = requests.get(f"{BACKEND}/download-report")  # ✅ moved inside guard
 
-if preview.status_code == 200:
-    pdf_bytes = preview.content
-    pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    if preview.status_code == 200:
+        pdf_bytes = preview.content
+        pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
 
-    components.html(
-        f"""
-        <iframe
-            src="data:application/pdf;base64,{pdf_base64}"
-            width="100%"
-            height="800px"
-            style="border:none;"
-        ></iframe>
-        """,
-        height=820
-    )
+        components.html(
+            f"""
+            <iframe
+                src="data:application/pdf;base64,{pdf_base64}"
+                width="100%"
+                height="800px"
+                style="border:none;"
+            ></iframe>
+            """,
+            height=820
+        )
 
-    st.download_button(
-        label="⬇️ Download Report",
-        data=pdf_bytes,
-        file_name="contextai_report.pdf",
-        mime="application/pdf"
-    )
+        st.download_button(
+            label="⬇️ Download Report",
+            data=pdf_bytes,
+            file_name="contextai_report.pdf",
+            mime="application/pdf"
+        )
+    else:
+        st.warning("⚠️ Report not available yet. Generate one first.")
