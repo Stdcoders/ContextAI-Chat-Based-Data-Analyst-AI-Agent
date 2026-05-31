@@ -6,14 +6,8 @@ from agentworkflow import AgentState, run_contextai
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app = FastAPI(title="ContextAI Backend")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 STATE = AgentState(
     dataset_name=None,
